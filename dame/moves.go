@@ -169,7 +169,7 @@ func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position)
 	}
 
 	for _, richtungVertikal := range [2]RichtungVertikal{Oben, Unten} {
-	richtungVertikal:
+	richtungHorizontal:
 		for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
 			for numberOfFields := 1; numberOfFields < BrettSize; numberOfFields++ {
 				schlagenPosition := Position{
@@ -180,8 +180,11 @@ func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position)
 					continue
 				}
 				schlagenFeld := b.Get(schlagenPosition)
-				if schlagenFeld == Stein(spieler) || schlagenFeld == Dame(spieler) || schlagenFeld == Leer {
-					continue richtungVertikal
+				if schlagenFeld == Leer {
+					continue
+				}
+				if schlagenFeld == Stein(spieler) || schlagenFeld == Dame(spieler) {
+					continue richtungHorizontal
 				}
 
 				neuePosition := Position{
@@ -192,7 +195,7 @@ func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position)
 					continue
 				}
 				if b.Get(neuePosition) != Leer {
-					continue richtungVertikal
+					continue richtungHorizontal
 				}
 
 				neuesBrett := b
@@ -203,7 +206,7 @@ func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position)
 				lenBefore := len(moves)
 				neuesBrett.addDameSchlagenMoves(moves, neuePosition)
 				if lenBefore == len(moves) {
-					moves[b] = struct{}{}
+					moves[neuesBrett] = struct{}{}
 				}
 			}
 		}

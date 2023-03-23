@@ -1,13 +1,15 @@
 package ai
 
-import "github.com/Lama06/Dame-Go.git/dame"
+import (
+	"github.com/Lama06/Dame-Go.git/dame"
+)
 
 func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Brett {
 	type Node struct {
 		depth          int
 		brett          dame.Brett
 		amZug          dame.Spieler
-		bewertung      float32
+		bewertung      int
 		bestChildIndex int
 		children       []int
 	}
@@ -39,7 +41,7 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 					bestChildIndex: -1,
 					children:       nil,
 				}
-				nodes[parentIndex].children = append(parent.children, len(nodes))
+				nodes[parentIndex].children = append(nodes[parentIndex].children, len(nodes))
 				nodes = append(nodes, child)
 			}
 		}
@@ -63,7 +65,7 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 
 			var (
 				bestChildIndex     int
-				bestChildBewertung float32
+				bestChildBewertung int
 			)
 
 			for childIndexIndex, childIndex := range node.children {
@@ -75,8 +77,10 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 					continue
 				}
 
-				if (node.amZug == spieler && child.bewertung > bestChildBewertung) ||
-					(node.amZug != spieler && child.bewertung < bestChildBewertung) {
+				if node.amZug == spieler && child.bewertung > bestChildBewertung {
+					bestChildIndex = childIndex
+					bestChildBewertung = child.bewertung
+				} else if node.amZug != spieler && child.bewertung < bestChildBewertung {
 					bestChildIndex = childIndex
 					bestChildBewertung = child.bewertung
 				}

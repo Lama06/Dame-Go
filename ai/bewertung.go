@@ -1,8 +1,6 @@
 package ai
 
 import (
-	"math"
-
 	"github.com/Lama06/Dame-Go.git/dame"
 )
 
@@ -26,11 +24,11 @@ type spielerStatistik struct {
 	steine, damen int
 }
 
-func (s spielerStatistik) bewertung() float32 {
+func (s spielerStatistik) bewertung() int {
 	if s.steine == 0 && s.damen == 0 {
-		return float32(math.Inf(-1))
+		return -1000
 	}
-	return float32(s.steine) + float32(s.damen)*3
+	return s.steine + s.damen*2
 }
 
 type brettStatistik struct {
@@ -50,7 +48,7 @@ func statistikFromBrett(brett dame.Brett) brettStatistik {
 	}
 }
 
-func (s brettStatistik) bewertung(perspektive dame.Spieler) float32 {
+func (s brettStatistik) bewertung(perspektive dame.Spieler) int {
 	switch perspektive {
 	case dame.SpielerOben:
 		return s.spielerOben.bewertung() - s.spielerUnten.bewertung()

@@ -46,8 +46,10 @@ func drawRect(pixels []byte, xStart, yStart, width, height int, color color.RGBA
 }
 
 type Game struct {
-	pixels []byte
-	brett  dame.Brett
+	pixels     []byte
+	brett      dame.Brett
+	nextPlayer dame.Spieler
+	autoPlay   bool
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -70,10 +72,33 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Update() error {
+	if inpututil.IsKeyJustReleased(ebiten.KeyEnter) {
+		g.autoPlay = !g.autoPlay
+	}
+
+	if g.autoPlay {
+		var maxDepth int
+		if g.nextPlayer == dame.SpielerOben {
+			maxDepth = 8
+		} else {
+			maxDepth = 1
+		}
+		g.brett = ai.FindBestMove(g.brett, g.nextPlayer, maxDepth)
+		log.Println(g.nextPlayer, "hat einen Zug gemacht")
+		g.nextPlayer = !g.nextPlayer
+		return nil
+	}
+
 	if inpututil.IsKeyJustReleased(ebiten.KeySpace) {
 		log.Println("Finde besten Zug...")
-		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 8)
+		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 1)
 		log.Println("Fertig")
+		return nil
+	} else if inpututil.IsKeyJustReleased(ebiten.Key1) {
+		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 7)
+		return nil
+	} else if inpututil.IsKeyJustReleased(ebiten.Key2) {
+		g.brett = ai.FindBestMove(g.brett, dame.SpielerUnten, 3)
 		return nil
 	}
 
@@ -115,7 +140,8 @@ func main() {
 	ebiten.SetWindowSize(1000, 1000)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.RunGame(&Game{
-		brett:  dame.DefaultBrett,
-		pixels: make([]byte, WindowSize*WindowSize*4),
+		brett:      dame.DefaultBrett,
+		pixels:     make([]byte, WindowSize*WindowSize*4),
+		nextPlayer: dame.SpielerOben,
 	})
 }

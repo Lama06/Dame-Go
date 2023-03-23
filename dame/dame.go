@@ -82,6 +82,17 @@ func (s Spieler) DameZeile() int {
 	}
 }
 
+func (s Spieler) String() string {
+	switch s {
+	case SpielerOben:
+		return "Spieler Oben (Blau)"
+	case SpielerUnten:
+		return "Spieler Unten (Rot)"
+	default:
+		panic("unreachable")
+	}
+}
+
 type Feld byte
 
 const (
