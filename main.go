@@ -79,9 +79,9 @@ func (g *Game) Update() error {
 	if g.autoPlay {
 		var maxDepth int
 		if g.nextPlayer == dame.SpielerOben {
-			maxDepth = 8
+			maxDepth = 6
 		} else {
-			maxDepth = 1
+			maxDepth = 3
 		}
 		g.brett = ai.FindBestMove(g.brett, g.nextPlayer, maxDepth)
 		log.Println(g.nextPlayer, "hat einen Zug gemacht")
@@ -91,7 +91,7 @@ func (g *Game) Update() error {
 
 	if inpututil.IsKeyJustReleased(ebiten.KeySpace) {
 		log.Println("Finde besten Zug...")
-		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 1)
+		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 7)
 		log.Println("Fertig")
 		return nil
 	} else if inpututil.IsKeyJustReleased(ebiten.Key1) {
