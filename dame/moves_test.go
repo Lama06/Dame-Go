@@ -556,3 +556,36 @@ func TestDameSchlagen(t *testing.T) {
 		},
 	)
 }
+
+func TestKeineZugMöglich(t *testing.T) {
+	testMoves(
+		t,
+		brett(
+			"_ _ _ _ ",
+			" _ B _ _",
+			"_ _ b _ ",
+			" _ _ _ _",
+			"_ b _ _ ",
+			" _ _ _ _",
+			"_ _ _ _ ",
+			" _ _ _ _",
+		),
+		dame.SpielerOben,
+		dame.PossibleMoves{
+			dame.Move{
+				Steps: dame.MoveSteps{
+					brett(
+						"_ _ _ _ ",
+						" _ B _ _",
+						"_ _ b _ ",
+						" _ _ _ _",
+						"_ b _ _ ",
+						" _ _ _ _",
+						"_ _ _ _ ",
+						" _ _ _ _",
+					),
+				},
+			},
+		},
+	)
+}

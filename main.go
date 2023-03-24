@@ -15,13 +15,12 @@ const (
 	WindowSize        = dame.BrettSize * FeldSize
 	ComputerSpieler   = dame.SpielerOben
 	MenschSpieler     = dame.SpielerUnten
-	AiDepth           = 7
-	ComputerStepDelay = 50
+	ComputerStepDelay = 30
 )
 
 var (
-	SelectedFieldColor     = colornames.Purple
-	PossibleMoveFieldColor = colornames.Pink
+	SelectedFieldColor     = color.RGBA{84, 6, 66, 0}
+	PossibleMoveFieldColor = color.RGBA{191, 25, 119, 0}
 )
 
 func feldColor(feld dame.Feld) color.RGBA {
@@ -61,8 +60,10 @@ type Game struct {
 	hasSelectedPosition bool
 	selectedPosition    dame.Position
 
-	remainingComputerSteps dame.MoveSteps
-	nextComputerStepTimer  int
+	calculatingComputerMove bool
+	computerMove            chan dame.Move
+	remainingComputerSteps  dame.MoveSteps
+	nextComputerStepTimer   int
 }
 
 func (g *Game) isPossibleMoveEndePosition(position dame.Position) (dame.Move, bool) {
@@ -114,6 +115,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Update() error {
+	if g.calculatingComputerMove {
+		select {
+		case move := <-g.computerMove:
+			g.calculatingComputerMove = false
+			g.remainingComputerSteps = move.Steps
+			g.nextComputerStepTimer = 0
+			ebiten.SetWindowTitle("Dame")
+		default:
+			return nil
+		}
+	}
+
 	if len(g.remainingComputerSteps) != 0 {
 		if g.nextComputerStepTimer > 0 {
 			g.nextComputerStepTimer--
@@ -143,9 +156,12 @@ func (g *Game) Update() error {
 
 	if move, ok := g.isPossibleMoveEndePosition(position); ok {
 		g.brett = move.Steps.Result()
-		g.remainingComputerSteps = ai.FindBestMove(g.brett, ComputerSpieler, AiDepth).Steps
-		g.nextComputerStepTimer = 0
+		go func(brett dame.Brett) {
+			g.computerMove <- ai.FindBestMove(brett, ComputerSpieler, AiDepth)
+		}(g.brett)
 		g.hasSelectedPosition = false
+		g.calculatingComputerMove = true
+		ebiten.SetWindowTitle("Dame - Überlegen...")
 		return nil
 	}
 
@@ -164,11 +180,13 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (windowWidth, windowHeigh
 }
 
 func main() {
+	ebiten.SetWindowTitle("Dame")
 	ebiten.SetWindowSize(1000, 1000)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.RunGame(&Game{
 		brett:               dame.DefaultBrett,
 		pixels:              make([]byte, WindowSize*WindowSize*4),
 		hasSelectedPosition: false,
+		computerMove:        make(chan dame.Move),
 	})
 }
