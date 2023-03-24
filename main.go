@@ -62,8 +62,9 @@ type Game struct {
 
 	calculatingComputerMove bool
 	computerMove            chan dame.Move
-	remainingComputerSteps  dame.MoveSteps
-	nextComputerStepTimer   int
+
+	remainingComputerSteps dame.MoveSteps
+	nextComputerStepTimer  int
 }
 
 func (g *Game) isPossibleMoveEndePosition(position dame.Position) (dame.Move, bool) {
@@ -114,13 +115,40 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.WritePixels(g.pixels)
 }
 
+func (g *Game) handleClick(x, y int) {
+	spalte := x / FeldSize
+	zeile := y / FeldSize
+	position := dame.Position{Spalte: spalte, Zeile: zeile}
+	if !position.Valid() {
+		g.hasSelectedPosition = false
+		return
+	}
+
+	if move, ok := g.isPossibleMoveEndePosition(position); ok {
+		g.brett = move.Steps.Result()
+		go func(brett dame.Brett) {
+			g.computerMove <- ai.FindBestMove(brett, ComputerSpieler, AiDepth)
+		}(g.brett)
+		g.hasSelectedPosition = false
+		g.calculatingComputerMove = true
+		ebiten.SetWindowTitle("Dame - Überlegen...")
+		return
+	}
+
+	spieler, ok := g.brett.Get(position).Spieler()
+	if ok && spieler == MenschSpieler {
+		g.hasSelectedPosition = true
+		g.selectedPosition = position
+	}
+}
+
 func (g *Game) Update() error {
 	if g.calculatingComputerMove {
 		select {
 		case move := <-g.computerMove:
 			g.calculatingComputerMove = false
 			g.remainingComputerSteps = move.Steps
-			g.nextComputerStepTimer = 0
+			g.nextComputerStepTimer = 10
 			ebiten.SetWindowTitle("Dame")
 		default:
 			return nil
@@ -141,34 +169,14 @@ func (g *Game) Update() error {
 		return nil
 	}
 
-	if !inpututil.IsMouseButtonJustReleased(ebiten.MouseButton0) {
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButton0) {
+		g.handleClick(ebiten.CursorPosition())
 		return nil
 	}
 
-	mouseX, mouseY := ebiten.CursorPosition()
-	spalte := mouseX / FeldSize
-	zeile := mouseY / FeldSize
-	position := dame.Position{Spalte: spalte, Zeile: zeile}
-	if !position.Valid() {
-		g.hasSelectedPosition = false
-		return nil
-	}
-
-	if move, ok := g.isPossibleMoveEndePosition(position); ok {
-		g.brett = move.Steps.Result()
-		go func(brett dame.Brett) {
-			g.computerMove <- ai.FindBestMove(brett, ComputerSpieler, AiDepth)
-		}(g.brett)
-		g.hasSelectedPosition = false
-		g.calculatingComputerMove = true
-		ebiten.SetWindowTitle("Dame - Überlegen...")
-		return nil
-	}
-
-	spieler, ok := g.brett.Get(position).Spieler()
-	if ok && spieler == MenschSpieler {
-		g.hasSelectedPosition = true
-		g.selectedPosition = position
+	touches := inpututil.AppendJustPressedTouchIDs(nil)
+	if len(touches) == 1 {
+		g.handleClick(ebiten.TouchPosition(touches[0]))
 		return nil
 	}
 
