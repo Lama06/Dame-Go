@@ -4,10 +4,11 @@ import (
 	"github.com/Lama06/Dame-Go.git/dame"
 )
 
-func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Brett {
+func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Move {
 	type Node struct {
 		depth          int
 		brett          dame.Brett
+		move           dame.Move
 		amZug          dame.Spieler
 		bewertung      int
 		bestChildIndex int
@@ -18,6 +19,7 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 		{
 			depth:          0,
 			brett:          brett,
+			move:           dame.Move{},
 			amZug:          spieler,
 			bewertung:      0,
 			bestChildIndex: -1,
@@ -32,12 +34,17 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 				continue
 			}
 
-			for possibleMove := range parent.brett.PossibleMoves(parent.amZug) {
+			for _, possibleMove := range parent.brett.PossibleMovesForSpieler(parent.amZug) {
+				var move dame.Move
+				if depth == 1 {
+					move = possibleMove
+				}
 				child := Node{
 					depth:          depth,
 					amZug:          !parent.amZug,
 					bewertung:      0,
-					brett:          possibleMove,
+					brett:          possibleMove.Steps.Result(),
+					move:           move,
 					bestChildIndex: -1,
 					children:       nil,
 				}
@@ -91,5 +98,5 @@ func FindBestMove(brett dame.Brett, spieler dame.Spieler, maxDepth int) dame.Bre
 		}
 	}
 
-	return nodes[nodes[0].bestChildIndex].brett
+	return nodes[nodes[0].bestChildIndex].move
 }

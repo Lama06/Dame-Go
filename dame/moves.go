@@ -1,14 +1,84 @@
 package dame
 
-func (b Brett) addSteinSchlagenMoves(moves map[Brett]struct{}, position Position, backwards bool) {
-	if !position.Valid() {
-		return
+type MoveSteps []Brett
+
+func (first MoveSteps) Equals(second MoveSteps) bool {
+	if len(first) != len(second) {
+		return false
 	}
 
-	spieler, stein := b.Get(position).IsStein()
-	if !stein {
-		return
+	for i := range first {
+		if first[i] != second[i] {
+			return false
+		}
 	}
+
+	return true
+}
+
+func (m MoveSteps) Result() Brett {
+	return m[len(m)-1]
+}
+
+type Move struct {
+	Start Position
+	Ende  Position
+	Steps MoveSteps
+}
+
+func (first Move) Equals(second Move) bool {
+	if !first.Steps.Equals(second.Steps) {
+		return false
+	}
+
+	if first.Start != second.Start {
+		return false
+	}
+
+	if first.Ende != second.Ende {
+		return false
+	}
+
+	return true
+}
+
+type PossibleMoves []Move
+
+func (p PossibleMoves) Contains(move Move) bool {
+	for i := range p {
+		if p[i].Equals(move) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (first PossibleMoves) Equals(second PossibleMoves) bool {
+	if len(first) != len(second) {
+		return false
+	}
+
+	for _, firstMove := range first {
+		if !second.Contains(firstMove) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (b Brett) getSteinSchlagenMoves(position Position, backwards bool) PossibleMoves {
+	if !position.Valid() {
+		return nil
+	}
+
+	if !b.Get(position).IsStein() {
+		return nil
+	}
+	spieler, _ := b.Get(position).Spieler()
+
+	var result PossibleMoves
 
 	var richtungenVertikal []RichtungVertikal
 	if backwards {
@@ -18,7 +88,7 @@ func (b Brett) addSteinSchlagenMoves(moves map[Brett]struct{}, position Position
 	}
 
 	for _, richtungVertikal := range richtungenVertikal {
-		for _, richtungHorizontal := range []RichtungHorizontal{Links, Rechts} {
+		for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
 			schlagenPosition := Position{
 				Zeile:  position.Zeile + richtungVertikal.Offset(),
 				Spalte: position.Spalte + richtungHorizontal.Offset(),
@@ -52,121 +122,123 @@ func (b Brett) addSteinSchlagenMoves(moves map[Brett]struct{}, position Position
 			neuesBrett.Set(schlagenPosition, Leer)
 			neuesBrett.Set(neuePosition, neuePositionFeld)
 
-			lenMoves := len(moves)
-			neuesBrett.addSteinSchlagenMoves(moves, neuePosition, true)
-			if lenMoves == len(moves) {
-				moves[neuesBrett] = struct{}{}
+			followingSchlagenMoves := neuesBrett.getSteinSchlagenMoves(neuePosition, true)
+			if len(followingSchlagenMoves) == 0 {
+				result = append(result, Move{
+					Start: position,
+					Ende:  neuePosition,
+					Steps: MoveSteps{neuesBrett},
+				})
+			} else {
+				for _, followingSchlagenMove := range followingSchlagenMoves {
+					result = append(result, Move{
+						Start: position,
+						Ende:  followingSchlagenMove.Ende,
+						Steps: append(MoveSteps{neuesBrett}, followingSchlagenMove.Steps...),
+					})
+				}
 			}
 		}
 	}
+
+	return result
 }
 
-func (b Brett) addAlleSteinSchlagenMoves(moves map[Brett]struct{}, spieler Spieler) {
-	for zeile := 0; zeile < BrettSize; zeile++ {
-		for spalte := 0; spalte < BrettSize; spalte++ {
-			position := Position{
-				Spalte: spalte,
-				Zeile:  zeile,
-			}
-			if !position.Valid() {
-				continue
-			}
-			if b.Get(position) != Stein(spieler) {
-				continue
-			}
-			b.addSteinSchlagenMoves(moves, position, false)
-		}
+func (b Brett) getSteinBewegenMoves(position Position) PossibleMoves {
+	if !position.Valid() {
+		return nil
 	}
+
+	if !b.Get(position).IsStein() {
+		return nil
+	}
+	spieler, _ := b.Get(position).Spieler()
+
+	var result PossibleMoves
+
+	for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
+		neuePosition := Position{
+			Spalte: position.Spalte + richtungHorizontal.Offset(),
+			Zeile:  position.Zeile + spieler.MoveDirection().Offset(),
+		}
+		if !neuePosition.Valid() {
+			continue
+		}
+		if b.Get(neuePosition) != Leer {
+			continue
+		}
+
+		neuePositionFeld := Stein(spieler)
+		if neuePosition.Zeile == spieler.DameZeile() {
+			neuePositionFeld = Dame(spieler)
+		}
+
+		neuesBrett := b
+		neuesBrett.Set(position, Leer)
+		neuesBrett.Set(neuePosition, neuePositionFeld)
+		result = append(result, Move{
+			Start: position,
+			Ende:  neuePosition,
+			Steps: MoveSteps{neuesBrett},
+		})
+	}
+
+	return result
 }
 
-func (b Brett) addAlleSteinBewegenMoves(moves map[Brett]struct{}, spieler Spieler) {
-	for zeile := 0; zeile < BrettSize; zeile++ {
-		for spalte := 0; spalte < BrettSize; spalte++ {
-			position := Position{
-				Spalte: spalte,
-				Zeile:  zeile,
-			}
-			if !position.Valid() {
-				continue
-			}
-			if b.Get(position) != Stein(spieler) {
-				continue
-			}
+func (b Brett) getDameBewegenMoves(position Position) PossibleMoves {
+	if !position.Valid() {
+		return nil
+	}
 
-			for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
+	if !b.Get(position).IsDame() {
+		return nil
+	}
+	spieler, _ := b.Get(position).Spieler()
+
+	var result PossibleMoves
+
+	for _, richtungVertikal := range [2]RichtungVertikal{Oben, Unten} {
+	richtungHorizontal:
+		for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
+			for numberOfFields := 1; numberOfFields < BrettSize; numberOfFields++ {
 				neuePosition := Position{
-					Spalte: position.Spalte + richtungHorizontal.Offset(),
-					Zeile:  position.Zeile + spieler.MoveDirection().Offset(),
+					Zeile:  position.Zeile + richtungVertikal.Offset()*numberOfFields,
+					Spalte: position.Spalte + richtungHorizontal.Offset()*numberOfFields,
 				}
 				if !neuePosition.Valid() {
 					continue
 				}
 				if b.Get(neuePosition) != Leer {
-					continue
-				}
-
-				neuePositionFeld := Stein(spieler)
-				if neuePosition.Zeile == spieler.DameZeile() {
-					neuePositionFeld = Dame(spieler)
+					continue richtungHorizontal
 				}
 
 				neuesBrett := b
 				neuesBrett.Set(position, Leer)
-				neuesBrett.Set(neuePosition, neuePositionFeld)
-				moves[neuesBrett] = struct{}{}
+				neuesBrett.Set(neuePosition, Dame(spieler))
+				result = append(result, Move{
+					Start: position,
+					Ende:  neuePosition,
+					Steps: MoveSteps{neuesBrett},
+				})
 			}
 		}
 	}
+
+	return result
 }
 
-func (b Brett) addAlleDameBewegenMoves(moves map[Brett]struct{}, spieler Spieler) {
-	for zeile := 0; zeile < BrettSize; zeile++ {
-		for spalte := 0; spalte < BrettSize; spalte++ {
-			position := Position{
-				Spalte: spalte,
-				Zeile:  zeile,
-			}
-			if !position.Valid() {
-				continue
-			}
-			if b.Get(position) != Dame(spieler) {
-				continue
-			}
-
-			for _, richtungVertikal := range [2]RichtungVertikal{Oben, Unten} {
-			richtungHorizontal:
-				for _, richtungHorizontal := range [2]RichtungHorizontal{Links, Rechts} {
-					for numberOfFields := 1; numberOfFields < BrettSize; numberOfFields++ {
-						neuesFeld := Position{
-							Zeile:  position.Zeile + richtungVertikal.Offset()*numberOfFields,
-							Spalte: position.Spalte + richtungHorizontal.Offset()*numberOfFields,
-						}
-						if !neuesFeld.Valid() {
-							continue
-						}
-						if b.Get(neuesFeld) != Leer {
-							continue richtungHorizontal
-						}
-
-						neuesBrett := b
-						neuesBrett.Set(position, Leer)
-						neuesBrett.Set(neuesFeld, Dame(spieler))
-						moves[neuesBrett] = struct{}{}
-					}
-				}
-			}
-		}
-	}
-}
-
-func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position) {
+func (b Brett) getDameSchlagenMoves(position Position) PossibleMoves {
 	if !position.Valid() {
-		return
+		return nil
 	}
-	spieler, isDame := b.Get(position).IsDame()
-	if !isDame {
-		return
+
+	if !b.Get(position).IsDame() {
+		return nil
 	}
+	spieler, _ := b.Get(position).Spieler()
+
+	var result PossibleMoves
 
 	for _, richtungVertikal := range [2]RichtungVertikal{Oben, Unten} {
 	richtungHorizontal:
@@ -203,45 +275,92 @@ func (b Brett) addDameSchlagenMoves(moves map[Brett]struct{}, position Position)
 				neuesBrett.Set(schlagenPosition, Leer)
 				neuesBrett.Set(neuePosition, Dame(spieler))
 
-				lenBefore := len(moves)
-				neuesBrett.addDameSchlagenMoves(moves, neuePosition)
-				if lenBefore == len(moves) {
-					moves[neuesBrett] = struct{}{}
+				followingSchlagenMoves := neuesBrett.getDameSchlagenMoves(neuePosition)
+				if len(followingSchlagenMoves) == 0 {
+					result = append(result, Move{
+						Start: position,
+						Ende:  neuePosition,
+						Steps: MoveSteps{neuesBrett},
+					})
+				} else {
+					for _, followingSchlagenMove := range followingSchlagenMoves {
+						result = append(result, Move{
+							Start: position,
+							Ende:  followingSchlagenMove.Ende,
+							Steps: append(MoveSteps{neuesBrett}, followingSchlagenMove.Steps...),
+						})
+					}
 				}
 			}
 		}
 	}
+
+	return result
 }
 
-func (b Brett) addAlleDameSchlagenMoves(moves map[Brett]struct{}, spieler Spieler) {
+func (b Brett) PossibleMovesForSpieler(spieler Spieler) PossibleMoves {
+	var result PossibleMoves
+
 	for zeile := 0; zeile < BrettSize; zeile++ {
 		for spalte := 0; spalte < BrettSize; spalte++ {
-			position := Position{
-				Spalte: spalte,
-				Zeile:  zeile,
-			}
+			position := Position{Zeile: zeile, Spalte: spalte}
 			if !position.Valid() {
 				continue
 			}
-			if b.Get(position) != Dame(spieler) {
+
+			if feldSpieler, ok := b.Get(position).Spieler(); !ok || feldSpieler != spieler {
 				continue
 			}
-			b.addDameSchlagenMoves(moves, position)
+
+			result = append(result, b.getSteinSchlagenMoves(position, false)...)
+			result = append(result, b.getDameSchlagenMoves(position)...)
 		}
 	}
-}
 
-func (b Brett) PossibleMoves(spieler Spieler) map[Brett]struct{} {
-	result := make(map[Brett]struct{})
-	b.addAlleSteinSchlagenMoves(result, spieler)
-	b.addAlleDameSchlagenMoves(result, spieler)
 	if len(result) > 0 {
 		return result
 	}
-	b.addAlleSteinBewegenMoves(result, spieler)
-	b.addAlleDameBewegenMoves(result, spieler)
-	if len(result) == 0 {
-		result[b] = struct{}{}
+
+	for zeile := 0; zeile < BrettSize; zeile++ {
+		for spalte := 0; spalte < BrettSize; spalte++ {
+			position := Position{Zeile: zeile, Spalte: spalte}
+			if !position.Valid() {
+				continue
+			}
+
+			if feldSpieler, ok := b.Get(position).Spieler(); !ok || feldSpieler != spieler {
+				continue
+			}
+
+			result = append(result, b.getSteinBewegenMoves(position)...)
+			result = append(result, b.getDameBewegenMoves(position)...)
+		}
+	}
+
+	if len(result) > 0 {
+		return result
+	}
+
+	return PossibleMoves{
+		Move{
+			Steps: MoveSteps{b},
+		},
+	}
+}
+
+func (b Brett) PossibleMovesForPosition(position Position) PossibleMoves {
+	spieler, ok := b.Get(position).Spieler()
+	if !ok {
+		return nil
+	}
+
+	movesForSpieler := b.PossibleMovesForSpieler(spieler)
+
+	var result PossibleMoves
+	for _, moveForSpieler := range movesForSpieler {
+		if moveForSpieler.Start == position {
+			result = append(result, moveForSpieler)
+		}
 	}
 	return result
 }

@@ -125,25 +125,34 @@ func Dame(spieler Spieler) Feld {
 	}
 }
 
-func (f Feld) IsStein() (Spieler, bool) {
+func (f Feld) IsStein() bool {
 	switch f {
-	case SteinSpielerOben:
-		return SpielerOben, true
-	case SteinSpielerUnten:
-		return SpielerUnten, true
+	case SteinSpielerOben, SteinSpielerUnten:
+		return true
 	default:
-		return false, false
+		return false
 	}
 }
 
-func (f Feld) IsDame() (Spieler, bool) {
+func (f Feld) IsDame() bool {
 	switch f {
-	case DameSpielerOben:
-		return SpielerOben, true
-	case DameSpielerUnten:
-		return SpielerUnten, true
+	case DameSpielerOben, DameSpielerUnten:
+		return true
 	default:
+		return false
+	}
+}
+
+func (f Feld) Spieler() (Spieler, bool) {
+	switch f {
+	case DameSpielerOben, SteinSpielerOben:
+		return SpielerOben, true
+	case DameSpielerUnten, SteinSpielerUnten:
+		return SpielerUnten, true
+	case Leer:
 		return false, false
+	default:
+		panic("unreachable")
 	}
 }
 

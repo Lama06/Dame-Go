@@ -2,7 +2,6 @@ package main
 
 import (
 	"image/color"
-	"log"
 
 	"github.com/Lama06/Dame-Go.git/ai"
 	"github.com/Lama06/Dame-Go.git/dame"
@@ -12,8 +11,17 @@ import (
 )
 
 const (
-	FeldSize   = 50
-	WindowSize = dame.BrettSize * FeldSize
+	FeldSize          = 50
+	WindowSize        = dame.BrettSize * FeldSize
+	ComputerSpieler   = dame.SpielerOben
+	MenschSpieler     = dame.SpielerUnten
+	AiDepth           = 7
+	ComputerStepDelay = 50
+)
+
+var (
+	SelectedFieldColor     = colornames.Purple
+	PossibleMoveFieldColor = colornames.Pink
 )
 
 func feldColor(feld dame.Feld) color.RGBA {
@@ -46,10 +54,35 @@ func drawRect(pixels []byte, xStart, yStart, width, height int, color color.RGBA
 }
 
 type Game struct {
-	pixels     []byte
-	brett      dame.Brett
-	nextPlayer dame.Spieler
-	autoPlay   bool
+	pixels []byte
+
+	brett dame.Brett
+
+	hasSelectedPosition bool
+	selectedPosition    dame.Position
+
+	remainingComputerSteps dame.MoveSteps
+	nextComputerStepTimer  int
+}
+
+func (g *Game) isPossibleMoveEndePosition(position dame.Position) (dame.Move, bool) {
+	if !g.hasSelectedPosition {
+		return dame.Move{}, false
+	}
+
+	spieler, ok := g.brett.Get(g.selectedPosition).Spieler()
+	if !ok || spieler != MenschSpieler {
+		return dame.Move{}, false
+	}
+
+	possibleMoves := g.brett.PossibleMovesForPosition(g.selectedPosition)
+	for _, possibleMove := range possibleMoves {
+		if possibleMove.Ende == position {
+			return possibleMove, true
+		}
+	}
+
+	return dame.Move{}, false
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -63,8 +96,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				continue
 			}
 
-			drawRect(g.pixels, spalte*FeldSize, zeile*FeldSize, FeldSize, FeldSize, colornames.Black)
-			drawRect(g.pixels, spalte*FeldSize+10, zeile*FeldSize+10, FeldSize-20, FeldSize-20, feldColor(g.brett.Get(position)))
+			if g.hasSelectedPosition && g.selectedPosition == position {
+				drawRect(g.pixels, spalte*FeldSize, zeile*FeldSize, FeldSize, FeldSize, SelectedFieldColor)
+			} else if _, ok := g.isPossibleMoveEndePosition(position); ok {
+				drawRect(g.pixels, spalte*FeldSize, zeile*FeldSize, FeldSize, FeldSize, PossibleMoveFieldColor)
+			} else {
+				drawRect(g.pixels, spalte*FeldSize, zeile*FeldSize, FeldSize, FeldSize, colornames.Black)
+			}
+
+			if g.brett.Get(position) != dame.Leer {
+				drawRect(g.pixels, spalte*FeldSize+10, zeile*FeldSize+10, FeldSize-20, FeldSize-20, feldColor(g.brett.Get(position)))
+			}
 		}
 	}
 
@@ -72,33 +114,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Update() error {
-	if inpututil.IsKeyJustReleased(ebiten.KeyEnter) {
-		g.autoPlay = !g.autoPlay
-	}
-
-	if g.autoPlay {
-		var maxDepth int
-		if g.nextPlayer == dame.SpielerOben {
-			maxDepth = 6
-		} else {
-			maxDepth = 3
+	if len(g.remainingComputerSteps) != 0 {
+		if g.nextComputerStepTimer > 0 {
+			g.nextComputerStepTimer--
 		}
-		g.brett = ai.FindBestMove(g.brett, g.nextPlayer, maxDepth)
-		log.Println(g.nextPlayer, "hat einen Zug gemacht")
-		g.nextPlayer = !g.nextPlayer
+
+		if g.nextComputerStepTimer == 0 {
+			g.brett = g.remainingComputerSteps[0]
+			g.remainingComputerSteps = g.remainingComputerSteps[1:len(g.remainingComputerSteps)]
+			g.nextComputerStepTimer = ComputerStepDelay
+		}
+
 		return nil
 	}
 
-	if inpututil.IsKeyJustReleased(ebiten.KeySpace) {
-		log.Println("Finde besten Zug...")
-		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 7)
-		log.Println("Fertig")
-		return nil
-	} else if inpututil.IsKeyJustReleased(ebiten.Key1) {
-		g.brett = ai.FindBestMove(g.brett, dame.SpielerOben, 7)
-		return nil
-	} else if inpututil.IsKeyJustReleased(ebiten.Key2) {
-		g.brett = ai.FindBestMove(g.brett, dame.SpielerUnten, 3)
+	if !inpututil.IsMouseButtonJustReleased(ebiten.MouseButton0) {
 		return nil
 	}
 
@@ -107,27 +137,24 @@ func (g *Game) Update() error {
 	zeile := mouseY / FeldSize
 	position := dame.Position{Spalte: spalte, Zeile: zeile}
 	if !position.Valid() {
+		g.hasSelectedPosition = false
 		return nil
 	}
 
-	var neuesFeld dame.Feld = g.brett.Get(position)
-	if inpututil.IsKeyJustReleased(ebiten.KeyM) {
-		if ebiten.IsKeyPressed(ebiten.KeyShift) {
-			neuesFeld = dame.DameSpielerUnten
-		} else {
-			neuesFeld = dame.SteinSpielerUnten
-		}
-	} else if inpututil.IsKeyJustReleased(ebiten.KeyC) {
-		if ebiten.IsKeyPressed(ebiten.KeyShift) {
-			neuesFeld = dame.DameSpielerOben
-		} else {
-			neuesFeld = dame.SteinSpielerOben
-		}
-	} else if inpututil.IsKeyJustReleased(ebiten.KeyBackspace) {
-		neuesFeld = dame.Leer
+	if move, ok := g.isPossibleMoveEndePosition(position); ok {
+		g.brett = move.Steps.Result()
+		g.remainingComputerSteps = ai.FindBestMove(g.brett, ComputerSpieler, AiDepth).Steps
+		g.nextComputerStepTimer = 0
+		g.hasSelectedPosition = false
+		return nil
 	}
 
-	g.brett.Set(position, neuesFeld)
+	spieler, ok := g.brett.Get(position).Spieler()
+	if ok && spieler == MenschSpieler {
+		g.hasSelectedPosition = true
+		g.selectedPosition = position
+		return nil
+	}
 
 	return nil
 }
@@ -140,8 +167,8 @@ func main() {
 	ebiten.SetWindowSize(1000, 1000)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.RunGame(&Game{
-		brett:      dame.DefaultBrett,
-		pixels:     make([]byte, WindowSize*WindowSize*4),
-		nextPlayer: dame.SpielerOben,
+		brett:               dame.DefaultBrett,
+		pixels:              make([]byte, WindowSize*WindowSize*4),
+		hasSelectedPosition: false,
 	})
 }
