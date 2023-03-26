@@ -1,3 +1,3 @@
 package main
 
-const AiDepth = 7
+const AiDepth = 6
